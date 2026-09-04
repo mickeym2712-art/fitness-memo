@@ -19,7 +19,7 @@ h2{font-size:1.05rem;margin:0 0 11px}
 .grid2,.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .metric{padding:11px;border:1px solid var(--line);border-radius:14px;background:#fbfcfe;text-align:center}
 .metric span{display:block;color:var(--muted);font-size:.72rem}.metric b{display:block;font-size:1.1rem}
-.seg{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.seg{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
 .seg button{border:1px solid var(--line);background:#fff;padding:11px;border-radius:12px;color:var(--muted);font-weight:800}
 .seg button.active{background:var(--blue);color:#fff}
 .meal,.history,.exercise{border:1px solid var(--line);border-radius:14px;background:#fbfcfe;padding:10px;margin-bottom:8px}
@@ -53,7 +53,7 @@ nav button{border:0;background:transparent;color:var(--muted);padding:9px 2px;bo
 
 <section id="home" class="tab active">
   <div class="card"><h2>目標</h2><div class="grid4"><div class="metric"><span>カロリー</span><b>2,300</b><span>kcal</span></div><div class="metric"><span>P</span><b>110g</b></div><div class="metric"><span>F</span><b>50g</b></div><div class="metric"><span>C</span><b>330g</b></div></div></div>
-  <div class="card"><h2>今日のトレーニング</h2><div class="seg" id="todayButtons"><button data-v="A">A</button><button data-v="B">B</button><button data-v="C">C</button><button data-v="休み">休み</button></div></div>
+  <div class="card"><h2>今日のトレーニング</h2><div class="seg" id="todayButtons"><button data-v="全身法">全身法</button><button data-v="A">A</button><button data-v="B">B</button><button data-v="C">C</button><button data-v="休み">休み</button></div></div>
   <div class="card"><h2>今日の体重</h2><div id="homeWeight" class="metric"></div></div>
   <div class="card"><div class="grid2"><div><h2>朝食</h2><div id="homeBreakfast"></div><div id="homeBreakfastTotal" class="total"></div></div><div><h2>昼食</h2><div id="homeLunch"></div><div id="homeLunchTotal" class="total"></div></div></div><div id="homeFoodTotal" class="total"></div></div>
 </section>
@@ -67,7 +67,7 @@ nav button{border:0;background:transparent;color:var(--muted);padding:9px 2px;bo
 <section id="gym" class="tab">
   <div class="card">
     <div class="head"><h2>ジム記録</h2><div class="head-actions"><button class="btn secondary small" id="copyPreviousWorkout">前回内容をコピー</button><button class="btn secondary small" id="addExercise">種目追加</button></div></div>
-    <div class="row"><div><label>メニュー</label><select id="pattern"><option>A</option><option>B</option><option>C</option></select></div><div><label>日付</label><input type="date" id="gymDate"></div></div>
+    <div class="row"><div><label>メニュー</label><select id="pattern"><option selected>全身法</option><option>A</option><option>B</option><option>C</option></select></div><div><label>日付</label><input type="date" id="gymDate"></div></div>
     <div id="previousWorkoutSummary" class="compare"></div>
     <div id="exerciseList"></div>
     <button class="btn full" id="saveWorkout">保存</button>
@@ -113,6 +113,7 @@ const D={
     ]
   },
   exercises:{
+    全身法:[{name:"ベンチプレス",sets:3},{name:"腹筋",sets:3},{name:"アシスト付き懸垂",sets:3},{name:"プレートロード式ローイング系マシン",sets:3}],
     A:[{name:"チェストプレス",sets:3},{name:"ラットプルダウン",sets:3},{name:"レッグプレス",sets:3}],
     B:[{name:"インクラインチェストプレス",sets:3},{name:"シーテッドロー",sets:3},{name:"レッグカール",sets:3}],
     C:[]
@@ -142,15 +143,15 @@ function loadState(){
   out.today=raw.today??out.today;
   out.weights=Array.isArray(raw.weights)?raw.weights:[];
   out.foods=raw.foods&&raw.foods.breakfast&&raw.foods.lunch?raw.foods:out.foods;
-  out.exercises={A:[],B:[],C:[]};
-  ["A","B","C"].forEach(p=>{
+  out.exercises={全身法:[],A:[],B:[],C:[]};
+  ["全身法","A","B","C"].forEach(p=>{
     const src=Array.isArray(raw.exercises?.[p])?raw.exercises[p]:D.exercises[p];
     out.exercises[p]=src.map(normalizeExerciseTemplate);
   });
   out.workouts=Array.isArray(raw.workouts)?raw.workouts.map(w=>({
     id:w.id??Date.now()+Math.random(),
     date:w.date||today(),
-    pattern:["A","B","C"].includes(w.pattern)?w.pattern:"A",
+    pattern:["全身法","A","B","C"].includes(w.pattern)?w.pattern:"全身法",
     exercises:Array.isArray(w.exercises)?w.exercises.map(normalizeWorkoutExercise):[]
   })):[];
   return out;
