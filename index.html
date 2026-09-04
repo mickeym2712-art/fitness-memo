@@ -85,6 +85,7 @@ nav button{border:0;background:transparent;color:var(--muted);padding:9px 2px;bo
 
 <section id="settings" class="tab">
   <div class="card"><h2>食事設定</h2><h3>朝食</h3><div id="breakfastEditor"></div><button class="btn secondary small" data-add-food="breakfast">食品追加</button><h3>昼食</h3><div id="lunchEditor"></div><button class="btn secondary small" data-add-food="lunch">食品追加</button><button class="btn full" id="saveFoods" style="margin-top:12px">食事設定を保存</button></div>
+  <div class="card"><h2>スプレッドシート同期</h2><p class="muted">この端末に残っている体重・筋トレ履歴を、重複を避けてGoogleスプレッドシートへ同期します。</p><button class="btn full" id="syncExisting">既存データを同期</button><div id="syncStatus" class="compare" style="display:none"></div></div>
   <div class="card"><button class="btn danger full" id="resetAll">全データを初期化</button></div>
 </section>
 </div>
@@ -94,6 +95,50 @@ nav button{border:0;background:transparent;color:var(--muted);padding:9px 2px;bo
 <script>
 (()=>{"use strict";
 const K="mikio_fitness_memo_v01";
+const API_URL="https://script.google.com/macros/s/AKfycbwl3LwoEYegFquv0QRngGNJAfdungDD0Kc3FvyF4eJhm2lRsDiSo6ndAUHJBDL7kJk5Nw/exec";
+
+async function postToSheet(payload){
+  const res=await fetch(API_URL,{
+    method:"POST",
+    headers:{"Content-Type":"text/plain;charset=utf-8"},
+    body:JSON.stringify(payload)
+  });
+  const text=await res.text();
+  let data;
+  try{data=JSON.parse(text)}catch{throw new Error("スプレッドシート応答の解析に失敗しました")}
+  if(!data.ok) throw new Error(data.error||"スプレッドシート保存に失敗しました");
+  return data;
+}
+
+async function syncAllExisting(){
+  const btn=document.getElementById("syncExisting");
+  const status=document.getElementById("syncStatus");
+  btn.disabled=true;
+  status.style.display="block";
+  status.className="compare";
+  status.textContent="同期中…";
+  try{
+    let weightCount=0, workoutCount=0;
+    for(const w of s.weights){
+      await postToSheet({type:"weight",date:w.date,weight:Number(w.value)});
+      weightCount++;
+    }
+    for(const w of s.workouts){
+      for(const ex of w.exercises){
+        const validSets=ex.sets.filter(set=>set.kg!==""||set.reps!=="").map(set=>({weight:set.kg===""?0:Number(set.kg),reps:set.reps===""?0:Number(set.reps)}));
+        if(validSets.length){
+          await postToSheet({type:"workout",date:w.date,pattern:w.pattern,exercise:ex.name,muscle:"",sets:validSets});
+          workoutCount+=validSets.length;
+        }
+      }
+    }
+    status.className="compare good";
+    status.textContent=`同期完了：体重 ${weightCount}件 / 筋トレ ${workoutCount}セット。既存データは重複登録されません。`;
+  }catch(err){
+    status.className="compare";
+    status.textContent="同期失敗："+err.message;
+  }finally{btn.disabled=false;}
+}
 const D={
   today:"休み",
   weights:[],
@@ -236,7 +281,7 @@ function renderAll(){renderHome();renderFood();renderWeight();renderGym();render
 document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{document.querySelectorAll("nav button").forEach(x=>x.classList.remove("active"));document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));b.classList.add("active");document.getElementById(b.dataset.tab).classList.add("active");if(b.dataset.tab==="weight")draw();if(b.dataset.tab==="gym")renderGym()});
 
 todayButtons.onclick=e=>{if(e.target.dataset.v){s.today=e.target.dataset.v;save();renderHome()}};
-saveWeight.onclick=()=>{let d=weightDate.value,v=parseFloat(weightValue.value);if(!d||!Number.isFinite(v))return alert("日付と体重を入力してください");let o=s.weights.find(x=>x.date===d);o?o.value=v:s.weights.push({date:d,value:v});save();renderWeight();renderHome();weightValue.value=""};
+saveWeight.onclick=async()=>{let d=weightDate.value,v=parseFloat(weightValue.value);if(!d||!Number.isFinite(v))return alert("日付と体重を入力してください");let o=s.weights.find(x=>x.date===d);o?o.value=v:s.weights.push({date:d,value:v});save();renderWeight();renderHome();weightValue.value="";try{await postToSheet({type:"weight",date:d,weight:v});alert("保存しました（スプレッドシートにも反映）")}catch(err){alert("端末には保存しましたが、スプレッドシート保存に失敗しました："+err.message)}};
 
 pattern.onchange=renderGym;
 addExercise.onclick=()=>{const p=pattern.value;ensureDraft(p).push({name:"新しい種目",sets:[blankSet(),blankSet(),blankSet()]});syncTemplateFromDraft(p);save();renderGym()};
@@ -249,7 +294,7 @@ exerciseList.oninput=e=>{
 };
 exerciseList.onchange=e=>{if(e.target.dataset.nameInput)renderGym()};
 
-saveWorkout.onclick=()=>{
+saveWorkout.onclick=async()=>{
   const p=pattern.value,d=gymDate.value,draft=ensureDraft(p);
   if(!d)return alert("日付を入力してください");
   const hasAny=draft.some(e=>e.sets.some(set=>set.kg!==""||set.reps!==""));
@@ -258,7 +303,18 @@ saveWorkout.onclick=()=>{
   s.workouts.push({id:Date.now(),date:d,pattern:p,exercises:cleaned});
   syncTemplateFromDraft(p);save();
   drafts[p]=s.exercises[p].map(blankExerciseFromTemplate);
-  renderGym();alert("保存しました");
+  renderGym();
+  try{
+    for(const ex of cleaned){
+      const validSets=ex.sets.filter(set=>set.kg!==""||set.reps!=="").map(set=>({weight:set.kg===""?0:Number(set.kg),reps:set.reps===""?0:Number(set.reps)}));
+      if(validSets.length){
+        await postToSheet({type:"workout",date:d,pattern:p,exercise:ex.name,muscle:"",sets:validSets});
+      }
+    }
+    alert("保存しました（スプレッドシートにも反映）");
+  }catch(err){
+    alert("端末には保存しましたが、スプレッドシート保存に失敗しました："+err.message);
+  }
 };
 
 saveFoods.onclick=()=>{document.querySelectorAll("[data-ft]").forEach(i=>{let t=i.dataset.ft,n=+i.dataset.i,k=i.dataset.k;s.foods[t][n][k]=["kcal","p","f","c"].includes(k)?(+i.value||0):i.value});save();renderAll();alert("保存しました")};
@@ -273,6 +329,8 @@ document.onclick=e=>{
   if(e.target.dataset.addFood){s.foods[e.target.dataset.addFood].push({name:"新しい食品",amount:"",kcal:0,p:0,f:0,c:0});renderEditors()}
   if(e.target.dataset.delFood){s.foods[e.target.dataset.delFood].splice(+e.target.dataset.i,1);renderEditors()}
 };
+
+syncExisting.onclick=syncAllExisting;
 
 resetAll.onclick=()=>{if(confirm("全データを削除しますか？")){localStorage.removeItem(K);s=loadState();Object.keys(drafts).forEach(k=>delete drafts[k]);save();renderAll()}};
 
