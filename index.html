@@ -26,7 +26,9 @@ h2{font-size:1.05rem;margin:0 0 11px}
 .meal{display:flex;justify-content:space-between;gap:8px}.meal small,.muted{color:var(--muted)}
 .total{margin-top:9px;padding-top:9px;border-top:1px solid var(--line);font-weight:800}
 label{display:block;color:var(--muted);font-size:.74rem;margin:0 0 4px}
-input,select{width:100%;padding:10px;border:1px solid #ccd5e1;border-radius:11px;background:#fff;font:inherit}
+input,select{width:100%;min-width:0;max-width:100%;padding:10px;border:1px solid #ccd5e1;border-radius:11px;background:#fff;font:inherit}
+.row>div{min-width:0}
+input[type="date"]{display:block;width:100%;min-width:0;max-width:100%}
 .btn{border:0;border-radius:11px;padding:10px 13px;background:var(--blue);color:#fff;font-weight:800}
 .btn.secondary{background:#edf1f6;color:var(--text)}.btn.danger{background:var(--red)}.btn.small{padding:7px 9px;font-size:.75rem}.btn.full{width:100%}
 .btn:disabled{opacity:.45}
@@ -151,7 +153,8 @@ function loadState(){
   out.workouts=Array.isArray(raw.workouts)?raw.workouts.map(w=>({
     id:w.id??Date.now()+Math.random(),
     date:w.date||today(),
-    pattern:["全身法","A","B","C"].includes(w.pattern)?w.pattern:"全身法",
+    // 2026-09-03の旧A記録は、実際には全身法として実施したため一度だけ自動補正
+    pattern:(w.date==="2026-09-03" && w.pattern==="A")?"全身法":(["全身法","A","B","C"].includes(w.pattern)?w.pattern:"全身法"),
     exercises:Array.isArray(w.exercises)?w.exercises.map(normalizeWorkoutExercise):[]
   })):[];
   return out;
